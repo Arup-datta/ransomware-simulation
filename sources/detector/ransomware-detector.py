@@ -7,7 +7,7 @@ import threading
 import hashlib
 import subprocess
 import math
-
+import notify2
 
 DIRECTORIES_TO_MONITOR = ['/home/student/test']
 # Threshold for file entropy to detect encryption
@@ -27,6 +27,18 @@ def log_event(message):
     with open(LOG_FILE, "a") as log:
         log.write(f"{datetime.now()} - {message}\n")
     print(message)
+
+
+# Set up the notification system (Ubuntu)
+def setup_notifications():
+    notify2.init("Log Monitor")
+    return notify2.Notification
+
+# Function to show a desktop notification
+def show_notification(message):
+    notification = notify2.Notification("Log Alert", message)
+    notification.set_timeout(10000)  # Show for 10 seconds
+    notification.show()
 
 
 #Calculate hash of a file
@@ -72,6 +84,7 @@ class EventHandler(pyinotify.ProcessEvent):
             if is_file_encrypted(file_path):
                 print(f"[ALERT] File {file_path} {action} and appears encrypted!")
                 print("[ALERT] RANSOMWARE ATTACK!!!!!")
+                show_notification("Attacked with Ransomware")
                 
 
 # Function to calculate file entropy
@@ -114,6 +127,7 @@ def monitor_processes(check_interval=1):
                 if len(open_files) > 50:  #Threshold for bulk access
                     print(f"[CRITICAL] Process {name} (PID: {pid}) accessing {len(open_files)} files. Possible ransomware activity!")
                     print("[ALERT] POSSIBLE RANSOMWARE ATTACK!!!!!")
+                    show_notification("Too many files got modified. Possible ransomware attack")
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
 
@@ -139,6 +153,7 @@ if __name__ == "__main__":
     wm = pyinotify.WatchManager()
     event_handler = EventHandler()
     notifier = pyinotify.Notifier(wm, event_handler)
+    notification = setup_notifications() #Setting up UI notifications
 
     for directory in DIRECTORIES_TO_MONITOR:
         if os.path.exists(directory):
