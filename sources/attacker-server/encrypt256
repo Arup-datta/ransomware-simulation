@@ -1,0 +1,31 @@
+from Cryptodome.Cipher import AES
+from Cryptodome.Random import get_random_bytes
+import os
+import sys
+
+def AESpad(data):
+    padding_len = AES.block_size - len(data) % AES.block_size
+    padding = bytes([padding_len] * padding_len)
+    return data + padding
+
+def AESencrypt_file(input_file, output_file, keystring):
+    iv = get_random_bytes(AES.block_size)
+    key = bytearray.fromhex(keystring)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+
+    with open(input_file, 'rb') as f:
+        file_data = f.read()
+
+    padded_data = AESpad(file_data)
+    encrypted_data = cipher.encrypt(padded_data)
+
+    with open(output_file, 'wb') as f:
+        f.write(iv)
+        f.write(encrypted_data)
+
+def AESencrypt_directory (keystring):
+    for root, dirs, files in os.walk('/home/student/test'):
+        for file in files:
+            file_path = os.path.join(root, file)
+            print(file_path, keystring)
+            AESencrypt_file(file_path, file_path+".AES", keystring)
