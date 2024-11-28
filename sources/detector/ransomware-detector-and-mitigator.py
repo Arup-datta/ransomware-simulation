@@ -8,25 +8,122 @@ import hashlib
 import subprocess
 import math
 import notify2
+import shutil
+from collections import Counter
+import os
 
 DIRECTORIES_TO_MONITOR = ['/home/student/test']
 # Threshold for file entropy to detect encryption
-ENTROPY_THRESHOLD = 7.0
+ENTROPY_THRESHOLD = 6.0
+
+backup_dir = '/home/student/backup'
+monitored_dir = '/home/student/test'
 
 SUSPICIOUS_EXTENSIONS = ['.locked', '.encrypted', '.aes']
 
+is_attacked = False
 
 file_hashes = {}
 
 
-LOG_FILE = "ransomware_monitor.log"
-
+LOG_FILE = "/home/student/ransomware_monitor.log"
+MITIGATION_LOG_FILE = "/home/student/mitigation.log"
 
 #Store critical logs in a file
 def log_event(message):
     with open(LOG_FILE, "a") as log:
         log.write(f"{datetime.now()} - {message}\n")
     print(message)
+
+
+
+
+# Rollback files from backup --- update code later
+def rollback_files():
+    global is_attacked
+    if is_attacked == False:
+      return
+    print("[INFO] =========>>>>>>>>>> Rolling back files from backwith after 30 seconds <<<<<<<<<=========")
+    time.sleep(30)
+    try:
+      if os.path.exists(backup_dir):
+        for root, _, files in os.walk(backup_dir):
+          for file in files:
+            src_path = os.path.join(root, file)
+            dest_path = monitored_dir
+            shutil.copy2(src_path, dest_path)
+            log_event(f"Restored file: {dest_path}")
+      else:
+        log_event(f"No backup found for directory: {directory}")
+    except Exception as e:
+        log_event(f"Error during rollback: {e}")
+    is_attacked = False
+
+
+
+# Terminate ransomware processes
+def terminate_ransomware_processes():
+    suspicious_keywords = ['.aes', 'ransomware', 'encrypt']
+    current_pid = os.getpid()
+    for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
+        if process.info['pid'] == current_pid:
+          continue
+        try:
+            cmdline = ' '.join(process.info['cmdline']).lower()
+            if any(keyword in cmdline for keyword in suspicious_keywords):
+                log_event(f"Terminating process: {process.info['name']} (PID: {process.info['pid']})")
+                process.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+
+# Isolate the infected system
+def isolate_system():
+    try:
+        os.system("sudo ifconfig eth0 down")
+        log_event("Network interface disabled to isolate system.")
+    except Exception as e:
+        log_event(f"Error isolating system: {e}")
+
+
+# Monitor and mitigate ransomware activity
+def monitor_and_mitigate():
+    log_event("[INFO] Starting ransomware mitigation system...")
+    while True:
+        try:
+            terminate_ransomware_processes()
+            rollback_files()
+        except KeyboardInterrupt:
+            log_event("[INFO] Stopping mitigation system...")
+            break
+
+
+def backup_files():
+    global is_attacked
+    backup_interval = 5 #backup every 5 seconds
+    print("System will backup the directory after 5 seconds")
+    time.sleep(backup_interval)
+    print("BACKUP FLAG " + str(is_attacked))
+    while True:
+      if is_attacked == True:
+        time.sleep(backup_interval)
+        continue
+      print("[INFO]  =======>>>>>>> CREATING BACKUP OF THE DIRECTORY <<<<<<<======== ")
+      try:
+        if os.path.exists(monitored_dir):
+          for root, _, files in os.walk(monitored_dir):
+            for file in files:
+              src_path = os.path.join(root, file)
+              dest_path = backup_dir
+              print(src_path)
+              print(dest_path)
+              shutil.copy2(src_path, dest_path)
+              log_event(f"Backup file: {dest_path}")
+        else:
+          log_event(f"[ERROR] No dir found for backup")
+      except Exception as e:
+        log_event(f"[ERROR] Error during backup: {e}")
+      time.sleep(backup_interval)
+
 
 
 # Set up the notification system (Ubuntu)
@@ -62,7 +159,7 @@ class EventHandler(pyinotify.ProcessEvent):
 
         if hash_before and hash_before != hash_after:
             log_event(f"[ALERT] File modified with possible encryption: {event.pathname}")
-            self.check_file_encryption(event.pathname, "modified")	   
+            self.check_file_encryption(event.pathname, "modified")         
         else:
             log_event(f"[INFO] File modified: {event.pathname}")
         file_hashes[event.pathname] = hash_after
@@ -81,33 +178,48 @@ class EventHandler(pyinotify.ProcessEvent):
 
     def check_file_encryption(self, file_path, action):
         if os.path.isfile(file_path):
-            if is_file_encrypted(file_path):
-                print(f"[ALERT] File {file_path} {action} and appears encrypted!")
-                print("[ALERT] RANSOMWARE ATTACK!!!!!")
-                show_notification("Attacked with Ransomware")
+          if is_file_encrypted(file_path):
+            global is_attacked
+            print(f"[ALERT] File {file_path} {action} and appears encrypted!")
+            print("[ALERT] RANSOMWARE ATTACK!!!!!")
+            show_notification("Ransomware Attack")
+            is_attacked = True
+            print("Stopping Backup - Ransomware Attack")
+            monitor_and_mitigate()
                 
 
 # Function to calculate file entropy
-def calculate_entropy(file_path):
-    print(file_path)
+def is_file_encrypted(file_path, entropy_threshold=7.5, block_size=16):
     try:
-        with open(file_path, 'rb') as f:
-            byte_counts = [0] * 256
-            for byte in f.read():
-                byte_counts[byte] += 1
-            file_size = sum(byte_counts)
-            if file_size == 0:
-                return 0
-            entropy = -sum(count / file_size * math.log2(count / file_size) for count in byte_counts if count > 0)
-            return entropy
-    except Exception as e:
-        return None
+        with open(file_path, "rb") as f:
+            data = f.read()
 
-def is_file_encrypted(file_path, threshold=ENTROPY_THRESHOLD):
-    entropy = calculate_entropy(file_path)
-    if entropy and entropy > threshold:
-        return True
-    return False
+        if not data:
+            print("File is empty, cannot determine encryption.")
+            return False
+
+        # Step 1: Calculate entropy
+        byte_counts = Counter(data)
+        total_bytes = len(data)
+        entropy = -sum((count / total_bytes) * math.log2(count / total_bytes)
+                       for count in byte_counts.values())
+
+        # Step 2: Check uniform byte distribution
+        byte_frequencies = [count / total_bytes for count in byte_counts.values()]
+        max_deviation = max(abs(freq - 1/256) for freq in byte_frequencies)  # Ideal random is ~1/256
+
+        # Step 3: Check AES block alignment
+        is_block_aligned = total_bytes % block_size == 0
+
+
+        # Determine if the file is likely encrypted
+        if entropy > entropy_threshold and max_deviation < 0.01 and is_block_aligned:
+            return True
+
+        return False
+    except Exception as e:
+        print(f"Error reading the file: {e}")
+        return False
 
 
 #Check sus keywords in terminal text
@@ -124,10 +236,12 @@ def monitor_processes(check_interval=1):
 
                 # Detect processes handling many files
                 open_files = process.open_files()
-                if len(open_files) > 50:  #Threshold for bulk access
+                if len(open_files) > 70:  #Threshold for bulk access
                     print(f"[CRITICAL] Process {name} (PID: {pid}) accessing {len(open_files)} files. Possible ransomware activity!")
                     print("[ALERT] POSSIBLE RANSOMWARE ATTACK!!!!!")
                     show_notification("Too many files got modified. Possible ransomware attack")
+                    is_attacked = True
+                    rollback_files()
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
 
@@ -174,7 +288,8 @@ if __name__ == "__main__":
 
 
     threading.Thread(target=monitor_file_hashes, daemon=True).start()
-
+    
+    threading.Thread(target=backup_files, daemon=True).start()
 
     log_event("[INFO] Monitoring started...")
     try:
