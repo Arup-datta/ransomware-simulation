@@ -43,7 +43,7 @@ def rollback_files():
     global is_attacked
     if is_attacked == False:
       return
-    print("[INFO] =========>>>>>>>>>> Rolling back files from backwith after 30 seconds <<<<<<<<<=========")
+    print("[INFO] =========>>>>>>>>>> Rolling back files from backup after 30 seconds <<<<<<<<<=========")
     time.sleep(30)
     try:
       if os.path.exists(backup_dir):
@@ -55,6 +55,7 @@ def rollback_files():
             log_event(f"Restored file: {dest_path}")
       else:
         log_event(f"No backup found for directory: {directory}")
+      print("[INFO] ============>>>>>>>> Backup complete <<<<<<<============")
     except Exception as e:
         log_event(f"Error during rollback: {e}")
     is_attacked = False
@@ -68,9 +69,13 @@ def terminate_ransomware_processes():
     for process in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
         if process.info['pid'] == current_pid:
           continue
+        cmdline = process.info['cmdline']
         try:
-            cmdline = ' '.join(process.info['cmdline']).lower()
-            if any(keyword in cmdline for keyword in suspicious_keywords):
+            if cmdline:
+              cmdline = ' '.join(process.info['cmdline']).lower()
+              if any(keyword in cmdline for keyword in suspicious_keywords):
+                if process.info['pid'] == current_pid:
+                  continue
                 log_event(f"Terminating process: {process.info['name']} (PID: {process.info['pid']})")
                 process.terminate()
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
@@ -107,7 +112,7 @@ def backup_files():
       if is_attacked == True:
         time.sleep(backup_interval)
         continue
-      print("[INFO]  =======>>>>>>> CREATING BACKUP OF THE DIRECTORY <<<<<<<======== ")
+      print("[INFO]  =======>>>>>>> UPDATING BACKUP OF THE DIRECTORY <<<<<<<======== ")
       try:
         if os.path.exists(monitored_dir):
           for root, _, files in os.walk(monitored_dir):
@@ -159,7 +164,7 @@ class EventHandler(pyinotify.ProcessEvent):
 
         if hash_before and hash_before != hash_after:
             log_event(f"[ALERT] File modified with possible encryption: {event.pathname}")
-            self.check_file_encryption(event.pathname, "modified")         
+            self.check_file_encryption(event.pathname, "modified")
         else:
             log_event(f"[INFO] File modified: {event.pathname}")
         file_hashes[event.pathname] = hash_after
@@ -186,7 +191,6 @@ class EventHandler(pyinotify.ProcessEvent):
             is_attacked = True
             print("Stopping Backup - Ransomware Attack")
             monitor_and_mitigate()
-                
 
 # Function to calculate file entropy
 def is_file_encrypted(file_path, entropy_threshold=7.5, block_size=16):
@@ -210,8 +214,9 @@ def is_file_encrypted(file_path, entropy_threshold=7.5, block_size=16):
 
         # Step 3: Check AES block alignment
         is_block_aligned = total_bytes % block_size == 0
-
-
+        print("Entropy value " + str(entropy))
+        print(max_deviation)
+        print(is_block_aligned)
         # Determine if the file is likely encrypted
         if entropy > entropy_threshold and max_deviation < 0.01 and is_block_aligned:
             return True
@@ -288,7 +293,8 @@ if __name__ == "__main__":
 
 
     threading.Thread(target=monitor_file_hashes, daemon=True).start()
-    
+
+
     threading.Thread(target=backup_files, daemon=True).start()
 
     log_event("[INFO] Monitoring started...")
