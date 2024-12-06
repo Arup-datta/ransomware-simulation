@@ -1,0 +1,106 @@
+
+# Ransomware Simulation Guide
+
+## Overview
+
+This project simulates a ransomware attack for educational and research purposes. It includes components for the attacker (server and client) and tools for detection and mitigation on the victim machine.
+
+---
+
+## Setup Instructions
+
+### 1. Virtual Machines
+- Set up **two VMs**:
+  - Victim client VM
+  - Attacker server VM
+
+### 2. Download Code
+- Download the provided codebase on both the client and server machines.
+
+### 3. Installation
+- Ensure **pip** is installed on both machines:
+  ```bash
+  sudo apt install python3-pip
+  pip3 --version
+  ```
+- Run the installation script:
+  ```bash
+  python3 install.py
+  ```
+  - Located in `ransomware-simulation/source/installation`.
+
+### 4. Configure Host File
+- Add the server's IP address to the client’s `/etc/hosts` file:
+  ```plaintext
+  server_ip www.foo.com
+  server_ip foo.com
+  ```
+
+### 5. Start Server
+- Update the `server.py` file in `ransomware-simulation/sources/attacker-server`:
+  - Set the `host` value in the `app.run()` method to the server’s IP.
+- Start the server:
+  ```bash
+  sudo python3 server.py
+  ```
+
+### 6. Test Server
+- Verify server functionality by visiting `http://www.foo.com` in a browser from the client machine.
+
+
+### 7. Prepare Directories
+- Create directories for testing:
+  ```bash
+  mkdir /home/student/test /home/student/backup
+  chmod 700 /home/student/test /home/student/backup
+  ```
+
+
+
+### 8. Run Detection and Mitigation
+- On the client VM, navigate to `ransomware-simulation/sources/detector`.
+- Start the detection and mitigation tool:
+  ```bash
+  python3 ransomware-detector-and-mitigator.py
+  ```
+
+### 9. Initiate Attack
+- From the client, run the attack code:
+  ```bash
+  python3 dropper.py
+  ```
+  - Located in `ransomware-simulation/sources/attacker-client`.
+
+---
+
+## Ransomware Attack Workflow
+
+1. **Server** sends encoded attack code embedded in a response.
+2. **Client** decodes and executes the attack code, encrypting the `/home/student/test` directory.
+3. The **detector and mitigator**:
+   - Detect the attack.
+   - Halt malicious processes.
+   - Restore encrypted files from `/home/student/backup` within 30 seconds.
+
+---
+
+## Logs and Backup
+
+- **Backup Process**:
+  - Regularly backs up `/home/student/test` to `/home/student/backup`.
+  - Halts during attacks and restores encrypted files.
+
+- **Attack Logs**:
+  - Located on the server, includes details such as UUID, encryption key, victim IP, and access time.
+
+- **Emergency Decryptor**:
+  - Retrieve decryption key from `request_log.txt` on the server.
+
+---
+
+### Screenshots and Examples
+Refer to the provided screenshots in the /ransomware-simulation/screenshots directory for:
+- Detection and mitigation results.
+- Log files and backup verification.
+
+---
