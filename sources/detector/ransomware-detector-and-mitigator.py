@@ -56,6 +56,7 @@ def rollback_files():
       else:
         log_event(f"No backup found for directory: {directory}")
       print("[INFO] ============>>>>>>>> Backup complete <<<<<<<============")
+      is_attacked = False
     except Exception as e:
         log_event(f"Error during rollback: {e}")
     is_attacked = False
@@ -109,25 +110,28 @@ def backup_files():
     time.sleep(backup_interval)
     print("BACKUP FLAG " + str(is_attacked))
     while True:
+      time.sleep(backup_interval)
       if is_attacked == True:
-        time.sleep(backup_interval)
+        print("[INFO] Backup stopped, Recovery in process")
         continue
       print("[INFO]  =======>>>>>>> UPDATING BACKUP OF THE DIRECTORY <<<<<<<======== ")
       try:
         if os.path.exists(monitored_dir):
           for root, _, files in os.walk(monitored_dir):
             for file in files:
-              src_path = os.path.join(root, file)
-              dest_path = backup_dir
-              print(src_path)
-              print(dest_path)
-              shutil.copy2(src_path, dest_path)
-              log_event(f"Backup file: {dest_path}")
+              if is_attacked == True:
+                break
+              else:
+                src_path = os.path.join(root, file)
+                dest_path = backup_dir
+                print(src_path)
+                print(dest_path)
+                shutil.copy2(src_path, dest_path)
+                log_event(f"Backup file: {dest_path}")
         else:
           log_event(f"[ERROR] No dir found for backup")
       except Exception as e:
         log_event(f"[ERROR] Error during backup: {e}")
-      time.sleep(backup_interval)
 
 
 

@@ -54,4 +54,4 @@ def index():
 	return render_template_string(html_content, encoded_file=encoded_content, key=key_hex, id=id)
 
 if __name__ == '__main__':
-    app.run(host='10.0.0.254', port=80)
+    app.run(host='192.168.1.84', port=80)
